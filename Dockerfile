@@ -1,3 +1,8 @@
+FROM gradle:jdk17-alpine AS build
+COPY --chown=gradle:gradle . /gradle
+WORKDIR /gradle
+RUN gradle build
+
 FROM openjdk:17-jdk-alpine3.14
 RUN mkdir /app
 WORKDIR /app
