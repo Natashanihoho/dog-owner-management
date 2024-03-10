@@ -30,4 +30,17 @@ jobs:
         docker build -f Dockerfile -t ${{secrets.DOCKER_USER}}/${{secrets.REPO}}:latest .    
     - name: Docker push
       run:
-        docker push ${{secrets.DOCKER_USER}}/${{secrets.REPO}}:latest 
+        docker push ${{secrets.DOCKER_USER}}/${{secrets.REPO}}:latest
+    - name: Build and Deploy
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{secrets.HOSTNAME}}
+        username: ${{secrets.USER_NAME}}
+        key: ${{secrets.EC2_SECRET}}
+        script: |
+         sudo docker login -u ${{secrets.DOCKER_USER}} -p ${{secrets.DOCKER_PASSWORD}}
+         sudo docker stop backend
+         sudo docker rm backend
+         sudo docker rmi ${{secrets.DOCKER_USER}}/${{secrets.REPO}}:latest
+         sudo docker pull ${{secrets.DOCKER_USER}}/${{secrets.REPO}}:latest
+         sudo docker run -d --name backend -p 80:8080 ${{secrets.ENV}} ${{secrets.DOCKER_USER}}/${{secrets.REPO}}:latest 
