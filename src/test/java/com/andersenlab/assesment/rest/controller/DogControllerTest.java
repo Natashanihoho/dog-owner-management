@@ -1,15 +1,13 @@
 package com.andersenlab.assesment.rest.controller;
 
-import com.andersenlab.assesment.dto.DogDto;
-import com.andersenlab.assesment.dto.DogFilter;
-import com.andersenlab.assesment.dto.DogRequestDto;
-import com.andersenlab.assesment.service.DogService;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.andersenlab.assesment.dto.dog.DogDto;
+import com.andersenlab.assesment.dto.dog.PatchDogDto;
+import com.andersenlab.assesment.dto.owner.Role;
+import com.andersenlab.assesment.dto.owner.UserInfoDto;
+import com.andersenlab.assesment.service.DogFacade;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -18,13 +16,14 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.andersenlab.assesment.data.DogTestBuilder.*;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -34,135 +33,104 @@ class DogControllerTest {
     @Autowired
     private MockMvc mockMvc;
     @MockBean
-    private DogService dogService;
+    private DogFacade dogFacade;
     @Autowired
     private ObjectMapper objectMapper;
+    private PatchDogDto patchDogDto;
+    private DogDto dogDto;
+    private UserInfoDto userInfoDto;
+    private JwtRequestPostProcessor jwtRequestPostProcessor;
 
-    @Test
-    void whenCreateDog_thenCreated() throws Exception {
-        //Given
-        DogRequestDto dogRequestDto = new DogRequestDto("Corgi", 15, "England", true);
-        DogDto DogDto = new DogDto("Corgi", 15, "England", true, 1);
-        when(dogService.createDog(dogRequestDto))
-                .thenReturn(DogDto);
-
-        //When
-        mockMvc.perform(post(DogController.DOGS_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dogRequestDto)))
-                .andExpect(status().isCreated());
-    }
-
-    @ParameterizedTest
-    @MethodSource("provideInvalidRequestBody")
-    void whenCreateDogWithInvalidRequestBody_thenBadRequest(String breed, Integer averageLifeExpectancy, String originCountry, Boolean easyToTrain) throws Exception {
-        //Given
-        DogRequestDto dogRequestDto = new DogRequestDto(breed, averageLifeExpectancy, originCountry, easyToTrain);
-
-        //When
-        mockMvc.perform(post(DogController.DOGS_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dogRequestDto)))
-                .andExpect(status().isBadRequest());
+    @BeforeEach
+    void init() {
+        patchDogDto = aDogTest().buildPatchDogDto();
+        dogDto = aDogTest().buildDogDto();
+        userInfoDto = new UserInfoDto("hard@gmail.com", Role.ADMIN);
+        jwtRequestPostProcessor = jwt().jwt(builder -> builder.tokenValue("value")
+                .claim("realm_access", Map.of("roles", List.of("USER", "ADMIN")))
+                .claim("email", "hard@gmail.com")
+                .header("Authorization", "Bearer value"));
     }
 
     @Test
     void whenGetDogById_thenReturnDogDto() throws Exception {
         //Given
-        DogDto DogDto = new DogDto("Corgi", 15, "England", true, 1);
-        when(dogService.getDog(DogDto.getId()))
-                .thenReturn(DogDto);
+        when(dogFacade.getDog(dogDto.getId(), userInfoDto))
+                .thenReturn(dogDto);
 
         //When
-        MvcResult mvcResult = mockMvc.perform(get(DogController.DOGS_URL + "/1")
-                        .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get(DogController.DOGS_URL + "/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .with(jwtRequestPostProcessor))
                 .andExpect(status().isOk())
-                .andReturn();
-
-        //Then
-        DogDto actual = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), DogDto.class);
-        assertEquals(DogDto, actual);
+                .andExpect(jsonPath("$.name").value(dogDto.getName()))
+                .andExpect(jsonPath("$.dateOfBirth").value(String.valueOf(dogDto.getDateOfBirth())))
+                .andExpect(jsonPath("$.breed").value(dogDto.getBreed()))
+                .andExpect(jsonPath("$.id").value(dogDto.getId()));
     }
 
     @Test
     void whenGetAllDogs_thenReturnPage() throws Exception {
         //Given
-        DogDto DogDto = new DogDto("Corgi", 15, "England", true, 1);
         Pageable pageable = Pageable.ofSize(2);
-        Page<DogDto> DogDtoPage = new PageImpl<>(List.of(DogDto, DogDto));
-        when(dogService.getAllDogs(pageable))
-                .thenReturn(DogDtoPage);
-        //When
-        MvcResult result = mockMvc.perform(get(DogController.DOGS_URL)
-                        .param("size", "2")
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andReturn();
+        Page<DogDto> dogDtoPage = new PageImpl<>(List.of(dogDto, dogDto));
+        when(dogFacade.getAllDogs(pageable, userInfoDto))
+                .thenReturn(dogDtoPage);
 
-        // Then
-        assertNotNull(result.getResponse().getContentAsString());
+        //When
+        mockMvc.perform(get(DogController.DOGS_URL)
+                        .param("size", "2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .with(jwtRequestPostProcessor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(dogDtoPage.getTotalElements()));
     }
 
     @Test
     void whenSearchDogsByCriteria_thenReturnDogList() throws Exception {
         //Given
-        DogDto DogDto = new DogDto("Corgi", 15, "England", true, 1);
-        when(dogService.searchDogsByCriteria(new DogFilter(null, 15, null, true)))
-                .thenReturn(List.of(DogDto));
+        when(dogFacade.searchDogsByCriteria(any()))
+                .thenReturn(List.of(dogDto));
 
         //When
-        MvcResult mvcResult = mockMvc.perform(get(DogController.DOGS_URL + "/search?averageLifeExpectancy=15&easyToTrain=true")
-                        .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get(DogController.DOGS_URL + "/search?name=Muffin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .with(jwtRequestPostProcessor))
                 .andExpect(status().isOk())
-                .andReturn();
-
-        //Then
-        List<DogDto> actual = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), new TypeReference<List<DogDto>>() {
-        });
-        assertEquals(1, actual.size());
-        assertEquals(15, actual.get(0).getAverageLifeExpectancy());
-        assertEquals(true, actual.get(0).getEasyToTrain());
+                .andExpect(jsonPath("$", hasSize(equalTo(1))))
+                .andExpect(jsonPath("$[0].name").value(dogDto.getName()))
+                .andExpect(jsonPath("$[0].dateOfBirth").value(String.valueOf(dogDto.getDateOfBirth())))
+                .andExpect(jsonPath("$[0].breed").value(dogDto.getBreed()))
+                .andExpect(jsonPath("$[0].id").value(dogDto.getId()));
     }
 
     @Test
-    void whenUpdateDog_thenReturnDogDto() throws Exception {
+    void whenUpdateDog_thenUpdateDog() throws Exception {
         //Given
-        DogDto DogDto = new DogDto("Corgi", 15, "England", true, 1);
-        DogRequestDto dogRequestDto = new DogRequestDto("Corgi", 15, "England", true);
-        when(dogService.updateDog(1, dogRequestDto))
-                .thenReturn(DogDto);
+        when(dogFacade.updateDog(1, patchDogDto, userInfoDto))
+                .thenReturn(dogDto);
 
         //When
-        MvcResult mvcResult = mockMvc.perform(patch(DogController.DOGS_URL + "/1")
+        mockMvc.perform(patch(DogController.DOGS_URL + "/1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dogRequestDto)))
+                        .with(jwtRequestPostProcessor)
+                        .content(objectMapper.writeValueAsString(patchDogDto)))
                 .andExpect(status().isOk())
-                .andReturn();
-
-        //Then
-        DogDto actual = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), DogDto.class);
-        assertEquals(DogDto, actual);
+                .andExpect(jsonPath("$.name").value(dogDto.getName()))
+                .andExpect(jsonPath("$.dateOfBirth").value(String.valueOf(dogDto.getDateOfBirth())))
+                .andExpect(jsonPath("$.breed").value(dogDto.getBreed()))
+                .andExpect(jsonPath("$.id").value(dogDto.getId()));
     }
 
     @Test
     void whenDeleteDog_thenNoContent() throws Exception {
         //When
         mockMvc.perform(delete(DogController.DOGS_URL + "/1")
-                        .contentType(MediaType.APPLICATION_JSON))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .with(jwtRequestPostProcessor))
                 .andExpect(status().isNoContent());
 
         //Then
-        verify(dogService).deleteDog(1);
-    }
-
-    private static Stream<Arguments> provideInvalidRequestBody() {
-        return Stream.of(
-                Arguments.of(" ", 15, "England", true),
-                Arguments.of(null, 15, "England", true),
-                Arguments.of("Corgi", -15, "England", true),
-                Arguments.of("Corgi", null, "England", true),
-                Arguments.of("Corgi", 15, "EnglandEnglandEnglandEnglandEnglandEnglandEnglandEnglandEnglandEngland", true),
-                Arguments.of("Corgi", 15, "", true)
-        );
+        verify(dogFacade).deleteDog(1, userInfoDto);
     }
 }

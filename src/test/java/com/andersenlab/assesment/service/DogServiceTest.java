@@ -1,13 +1,13 @@
 package com.andersenlab.assesment.service;
 
-import com.andersenlab.assesment.dto.DogDto;
-import com.andersenlab.assesment.dto.DogFilter;
-import com.andersenlab.assesment.dto.DogRequestDto;
+import com.andersenlab.assesment.dto.dog.DogDto;
+import com.andersenlab.assesment.dto.dog.DogFilter;
+import com.andersenlab.assesment.dto.dog.PatchDogDto;
 import com.andersenlab.assesment.entity.Dog;
-import com.andersenlab.assesment.exception.ResourceAlreadyExistsException;
 import com.andersenlab.assesment.exception.ResourceNotFoundException;
 import com.andersenlab.assesment.mapper.DogMapper;
 import com.andersenlab.assesment.repository.DogRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
@@ -20,10 +20,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static com.andersenlab.assesment.data.DogTestBuilder.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -37,46 +37,18 @@ class DogServiceTest {
     private DogMapper DogMapper = Mappers.getMapper(DogMapper.class);
     @InjectMocks
     private DogService dogService;
+    private Dog dog;
+    private PatchDogDto patchDogDto;
 
-    @Test
-    void whenCreateDog_thenSaveAndReturnDogDto() {
-        //Given
-        DogRequestDto dogRequestDto = new DogRequestDto("Corgi", 15, "England", true);
-        Dog dog = new Dog(1, "Corgi", 15, true, "England", Collections.emptyList());
-        when(dogRepository.existsByBreedIgnoreCase(dogRequestDto.getBreed()))
-                .thenReturn(false);
-        when(dogRepository.save(dog))
-                .thenReturn(dog);
-
-        //When
-        DogDto actual = dogService.createDog(dogRequestDto);
-
-        //Then
-        assertEquals(dogRequestDto.getBreed(), actual.getBreed());
-        assertEquals(dogRequestDto.getAverageLifeExpectancy(), actual.getAverageLifeExpectancy());
-        assertEquals(dogRequestDto.getOriginCountry(), actual.getOriginCountry());
-        assertEquals(dogRequestDto.getEasyToTrain(), actual.getEasyToTrain());
-        assertEquals(dog.getId(), actual.getId());
-    }
-
-    @Test
-    void whenCreateDogIfAlreadyExists_thenThrowException() {
-        //Given
-        DogRequestDto dogRequestDto = new DogRequestDto("Corgi", 15, "England", true);
-        when(dogRepository.existsByBreedIgnoreCase(any()))
-                .thenReturn(true);
-
-        //When
-        assertThrows(ResourceAlreadyExistsException.class, () -> dogService.createDog(dogRequestDto));
-
-        //Then
-        verify(dogRepository, never()).save(any());
+    @BeforeEach
+    void init() {
+        dog = aDogTest().buildDogEntity();
+        patchDogDto = aDogTest().buildPatchDogDto();
     }
 
     @Test
     void whenGetDogById_thenReturnDogDto() {
         //Given
-        Dog dog = new Dog(1, "Corgi", 15, true, "England", Collections.emptyList());
         when(dogRepository.findById(1))
                 .thenReturn(Optional.of(dog));
 
@@ -84,10 +56,8 @@ class DogServiceTest {
         DogDto actual = dogService.getDog(1);
 
         //Then
-        assertEquals(dog.getBreed(), actual.getBreed());
-        assertEquals(dog.getOriginCountry(), actual.getOriginCountry());
-        assertEquals(dog.getAverageLifeExpectancy(), actual.getAverageLifeExpectancy());
-        assertEquals(dog.getEasyToTrain(), actual.getEasyToTrain());
+        assertEquals(dog.getName(), actual.getName());
+        assertEquals(dog.getDateOfBirth(), actual.getDateOfBirth());
         assertEquals(dog.getId(), actual.getId());
     }
 
@@ -104,7 +74,6 @@ class DogServiceTest {
     @Test
     void whenGetAllDogs_thenReturnDogsPage() {
         //Given
-        Dog dog = new Dog(1, "Corgi", 15, true, "England", Collections.emptyList());
         Pageable pageable = Pageable.ofSize(2);
         Page<Dog> DogPage = new PageImpl<>(List.of(dog, dog));
         when(dogRepository.findAll(pageable))
@@ -120,12 +89,11 @@ class DogServiceTest {
     @Test
     void whenSearchDogsByCriteria_thenReturnList() {
         //Given
-        Dog dog = new Dog(1, "Corgi", 15, true, "England", Collections.emptyList());
         when(dogRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(dog));
 
         //When
-        List<DogDto> actual = dogService.searchDogsByCriteria(new DogFilter("Alice", null, null, true));
+        List<DogDto> actual = dogService.searchDogsByCriteria(new DogFilter("Alice", null, null));
 
         //Then
         assertEquals(1, actual.size());
@@ -134,31 +102,26 @@ class DogServiceTest {
     @Test
     void whenUpdateDog_thenUpdateAndReturnDogDto() {
         //Given
-        DogRequestDto dogRequestDto = new DogRequestDto("Welsh Corgi Pembroke", 12, "England", true);
-        Dog dog = new Dog(1, "Corgi", 15, true, "England", Collections.emptyList());
         when(dogRepository.findById(1))
                 .thenReturn(Optional.of(dog));
 
         //When
-        DogDto actual = dogService.updateDog(1, dogRequestDto);
+        DogDto actual = dogService.updateDog(1, patchDogDto);
 
         //Then
-        assertEquals(dogRequestDto.getBreed(), actual.getBreed());
-        assertEquals(dogRequestDto.getEasyToTrain(), actual.getEasyToTrain());
-        assertEquals(dogRequestDto.getAverageLifeExpectancy(), actual.getAverageLifeExpectancy());
-        assertEquals(dogRequestDto.getOriginCountry(), actual.getOriginCountry());
+        assertEquals(patchDogDto.getName(), actual.getName());
+        assertEquals(patchDogDto.getDateOfBirth(), actual.getDateOfBirth());
         assertEquals(1, actual.getId());
     }
 
     @Test
     void whenUpdateNonExistentDog_thenThrowNotFoundException() {
         //Given
-        DogRequestDto dogRequestDto = new DogRequestDto("Corgi", 15, "England", true);
         when(dogRepository.findById(1))
                 .thenReturn(Optional.empty());
 
         //When
-        assertThrows(ResourceNotFoundException.class, () -> dogService.updateDog(1, dogRequestDto));
+        assertThrows(ResourceNotFoundException.class, () -> dogService.updateDog(1, patchDogDto));
 
         //Then
         verify(DogMapper, never()).updateDog(any(), any());
@@ -167,7 +130,6 @@ class DogServiceTest {
     @Test
     void whenDeleteDog_thenDeleteDog() {
         //Given
-        Dog dog = new Dog(1, "Corgi", 15, true, "England", Collections.emptyList());
         when(dogRepository.findById(1))
                 .thenReturn(Optional.of(dog));
 
@@ -188,6 +150,6 @@ class DogServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> dogService.deleteDog(1));
 
         //Then
-        verify(dogRepository, never()).delete(any());
+        verify(dogRepository, never()).delete(any(Dog.class));
     }
 }

@@ -7,4 +7,8 @@ public interface ErrorMessage {
     String ERR003_MESSAGE = "Invalid request parameter";
     String ERR004_MESSAGE = "Resource can not be found";
     String ERR005_MESSAGE = "Resource already exists";
+    String ERR006_MESSAGE = "Date of birth should not be in the future";
+    String ERR007_MESSAGE = "Registration failed";
+    String ERR008_MESSAGE = "Email format is invalid";
+    String ERR009_MESSAGE = "Permission denied. Action not allowed.";
 }

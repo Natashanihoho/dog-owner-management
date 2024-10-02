@@ -1,14 +1,20 @@
 package com.andersenlab.assesment.service;
 
-import com.andersenlab.assesment.dto.*;
+import com.andersenlab.assesment.dto.dog.CreateDogDto;
+import com.andersenlab.assesment.dto.dog.DogDto;
+import com.andersenlab.assesment.dto.dog.DogFilter;
+import com.andersenlab.assesment.dto.dog.PatchDogDto;
 import com.andersenlab.assesment.entity.Dog;
 import com.andersenlab.assesment.entity.Dog_;
-import com.andersenlab.assesment.exception.model.ErrorCode;
-import com.andersenlab.assesment.exception.ResourceAlreadyExistsException;
+import com.andersenlab.assesment.entity.Owner;
+import com.andersenlab.assesment.entity.Owner_;
 import com.andersenlab.assesment.exception.ResourceNotFoundException;
+import com.andersenlab.assesment.exception.model.ErrorCode;
 import com.andersenlab.assesment.mapper.DogMapper;
+import com.andersenlab.assesment.repository.BreedRepository;
 import com.andersenlab.assesment.repository.DogRepository;
 import com.andersenlab.assesment.repository.specification.ConditionSpecification;
+import com.andersenlab.assesment.repository.specification.JoinSpecification;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Page;
@@ -25,38 +31,45 @@ import java.util.Objects;
 public class DogService {
 
     private final DogRepository dogRepository;
+    private final BreedRepository breedRepository;
     private final DogMapper dogMapper;
 
     @Transactional
-    public DogDto createDog(DogRequestDto dogRequestDto) {
-        checkIfDogAlreadyExists(dogRequestDto.getBreed());
-        Dog dog = dogMapper.mapToDog(dogRequestDto);
-        Dog savedDog = dogRepository.save(dog);
-        return dogMapper.mapToDogDto(savedDog);
+    public DogDto createDog(CreateDogDto createDogDto, Owner owner) {
+        Dog dog = dogRepository.save(dogMapper.mapToDog(createDogDto));
+        dog.setOwner(owner);
+        breedRepository.findByBreedName(createDogDto.getBreed())
+                .ifPresentOrElse(
+                        dog::setBreed,
+                        () -> { throw new ResourceNotFoundException(
+                                ErrorCode.ERR004, "Breed [" + createDogDto.getBreed() + "] not found", HttpStatus.NOT_FOUND
+                        );}
+                );
+        return dogMapper.mapToDogDto(dog);
     }
 
-    @Transactional(readOnly = true)
     public DogDto getDog(Integer dogId) {
         return dogMapper.mapToDogDto(getDogById(dogId));
     }
 
-    @Transactional(readOnly = true)
     public Page<DogDto> getAllDogs(Pageable pageable) {
         return dogRepository.findAll(pageable)
                 .map(dogMapper::mapToDogDto);
     }
 
-    @Transactional(readOnly = true)
+    public Page<DogDto> getAllDogsForOwner(String email, Pageable pageable) {
+        return dogRepository.findAllByOwner_Email(email, pageable)
+                .map(dogMapper::mapToDogDto);
+    }
+
     public List<DogDto> searchDogsByCriteria(DogFilter dogFilter) {
         return dogRepository.findAll(
                         new ConditionSpecification<>(
-                                dogFilter.breed(), StringUtils::isNotBlank, Dog_.breed
+                                dogFilter.name(), StringUtils::isNotBlank, Dog_.name
                         ).and(
-                                new ConditionSpecification<>(dogFilter.averageLifeExpectancy(), Objects::nonNull, Dog_.averageLifeExpectancy)
+                                new ConditionSpecification<>(dogFilter.dateOfBirth(), Objects::nonNull, Dog_.dateOfBirth)
                         ).and(
-                                new ConditionSpecification<>(dogFilter.originCountry(), StringUtils::isNotBlank, Dog_.originCountry)
-                        ).and(
-                                new ConditionSpecification<>(dogFilter.easyToTrain(), Objects::nonNull, Dog_.easyToTrain)
+                                new JoinSpecification<>(dogFilter.ownerId(), Dog_.owner, Owner_.id)
                         )
                 ).stream()
                 .map(dogMapper::mapToDogDto)
@@ -64,8 +77,8 @@ public class DogService {
     }
 
     @Transactional
-    public DogDto updateDog(Integer dogId, DogRequestDto dogRequestDto) {
-        Dog updatedDog = dogMapper.updateDog(getDogById(dogId), dogRequestDto);
+    public DogDto updateDog(Integer dogId, PatchDogDto patchDogDto) {
+        Dog updatedDog = dogMapper.updateDog(getDogById(dogId), patchDogDto);
         return dogMapper.mapToDogDto(updatedDog);
     }
 
@@ -74,19 +87,11 @@ public class DogService {
         dogRepository.delete(getDogById(dogId));
     }
 
-    private Dog getDogById(Integer dogId) {
+    Dog getDogById(Integer dogId) {
         return dogRepository.findById(dogId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                                 ErrorCode.ERR004, "Dog with id [" + dogId + "] not found", HttpStatus.NOT_FOUND
                         )
                 );
-    }
-
-    private void checkIfDogAlreadyExists(String breed) {
-        if (dogRepository.existsByBreedIgnoreCase(breed)) {
-            throw new ResourceAlreadyExistsException(
-                    ErrorCode.ERR005, "Dog with breed [" + breed + "] already exists", HttpStatus.BAD_REQUEST
-            );
-        }
     }
 }

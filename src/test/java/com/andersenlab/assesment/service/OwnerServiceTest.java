@@ -1,14 +1,16 @@
 package com.andersenlab.assesment.service;
 
-import com.andersenlab.assesment.dto.OwnerDogLinkDto;
-import com.andersenlab.assesment.dto.OwnerDto;
-import com.andersenlab.assesment.dto.OwnerFilter;
-import com.andersenlab.assesment.dto.OwnerRequestDto;
+import com.andersenlab.assesment.dto.owner.CreateOwnerDto;
+import com.andersenlab.assesment.dto.owner.OwnerDto;
+import com.andersenlab.assesment.dto.owner.OwnerFilter;
+import com.andersenlab.assesment.dto.owner.PatchOwnerDto;
 import com.andersenlab.assesment.entity.Owner;
 import com.andersenlab.assesment.exception.ResourceNotFoundException;
+import com.andersenlab.assesment.mapper.DogMapper;
 import com.andersenlab.assesment.mapper.OwnerMapper;
-import com.andersenlab.assesment.repository.DogRepository;
+import com.andersenlab.assesment.mapper.OwnerMapperImpl;
 import com.andersenlab.assesment.repository.OwnerRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
@@ -21,10 +23,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static com.andersenlab.assesment.data.OwnerTestBuilder.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -33,36 +35,43 @@ class OwnerServiceTest {
 
     @Mock
     private OwnerRepository ownerRepository;
-    @Mock
-    private DogRepository dogRepository;
     @Spy
-    private OwnerMapper ownerMapper = Mappers.getMapper(OwnerMapper.class);
+    private DogMapper dogMapper = Mappers.getMapper(DogMapper.class);
+    @Spy
+    private OwnerMapper ownerMapper = new OwnerMapperImpl(dogMapper);
     @InjectMocks
     private OwnerService ownerService;
+    private CreateOwnerDto createOwnerDto;
+    private PatchOwnerDto patchOwnerDto;
+    private Owner owner;
+
+    @BeforeEach
+    void init() {
+        createOwnerDto = aOwnerTest().buildCreateOwnerDto();
+        patchOwnerDto = aOwnerTest().buildPatchOwnerDto();
+        owner = aOwnerTest().buildOwnerEntity();
+    }
 
     @Test
     void whenCreateOwner_thenSaveAndReturnOwnerDto() {
         //Given
-        OwnerRequestDto ownerRequestDto = new OwnerRequestDto("Alice", "Smith", 30, "Gdansk");
-        Owner owner = new Owner(1, "Alice", "Smith", 30, "Gdansk", Collections.emptyList());
-        when(ownerRepository.save(owner))
+        when(ownerRepository.save(any()))
                 .thenReturn(owner);
 
         //When
-        OwnerDto actual = ownerService.createOwner(ownerRequestDto);
+        OwnerDto actual = ownerService.createOwner(createOwnerDto);
 
         //Then
-        assertEquals(ownerRequestDto.getFirstName(), actual.getFirstName());
-        assertEquals(ownerRequestDto.getLastName(), actual.getLastName());
-        assertEquals(ownerRequestDto.getAge(), actual.getAge());
-        assertEquals(ownerRequestDto.getCity(), actual.getCity());
+        assertEquals(createOwnerDto.getFirstName(), actual.getFirstName());
+        assertEquals(createOwnerDto.getLastName(), actual.getLastName());
+        assertEquals(createOwnerDto.getAge(), actual.getAge());
+        assertEquals(createOwnerDto.getCity(), actual.getCity());
         assertEquals(owner.getId(), actual.getId());
     }
 
     @Test
     void whenGetOwnerById_thenReturnOwnerDto() {
         //Given
-        Owner owner = new Owner(1, "Alice", "Smith", 30, "Gdansk", Collections.emptyList());
         when(ownerRepository.findById(1))
                 .thenReturn(Optional.of(owner));
 
@@ -90,7 +99,6 @@ class OwnerServiceTest {
     @Test
     void whenGetAllOwners_thenReturnOwnersPage() {
         //Given
-        Owner owner = new Owner(1, "Alice", "Smith", 30, "Gdansk", Collections.emptyList());
         Pageable pageable = Pageable.ofSize(2);
         Page<Owner> ownerPage = new PageImpl<>(List.of(owner, owner));
         when(ownerRepository.findAll(pageable))
@@ -106,7 +114,6 @@ class OwnerServiceTest {
     @Test
     void whenSearchOwnersByCriteria_thenReturnList() {
         //Given
-        Owner owner = new Owner(1, "Alice", "Smith", 30, "Gdansk", Collections.emptyList());
         when(ownerRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(owner));
 
@@ -120,31 +127,28 @@ class OwnerServiceTest {
     @Test
     void whenUpdateOwner_thenUpdateAndReturnOwnerDto() {
         //Given
-        OwnerRequestDto ownerRequestDto = new OwnerRequestDto("Alice", "Smith", 31, "Warsaw");
-        Owner owner = new Owner(1, "Alice", "Smith", 30, "Gdansk", Collections.emptyList());
         when(ownerRepository.findById(1))
                 .thenReturn(Optional.of(owner));
 
         //When
-        OwnerDto actual = ownerService.updateOwner(1, ownerRequestDto);
+        OwnerDto actual = ownerService.updateOwner(1, patchOwnerDto);
 
         //Then
-        assertEquals(ownerRequestDto.getFirstName(), actual.getFirstName());
-        assertEquals(ownerRequestDto.getLastName(), actual.getLastName());
-        assertEquals(ownerRequestDto.getAge(), actual.getAge());
-        assertEquals(ownerRequestDto.getCity(), actual.getCity());
+        assertEquals(patchOwnerDto.getFirstName(), actual.getFirstName());
+        assertEquals(patchOwnerDto.getLastName(), actual.getLastName());
+        assertEquals(patchOwnerDto.getAge(), actual.getAge());
+        assertEquals(patchOwnerDto.getCity(), actual.getCity());
         assertEquals(1, actual.getId());
     }
 
     @Test
     void whenUpdateNonExistentOwner_thenThrowNotFoundException() {
         //Given
-        OwnerRequestDto ownerRequestDto = new OwnerRequestDto("Alice", "Smith", 31, "Warsaw");
         when(ownerRepository.findById(1))
                 .thenReturn(Optional.empty());
 
         //When
-        assertThrows(ResourceNotFoundException.class, () -> ownerService.updateOwner(1, ownerRequestDto));
+        assertThrows(ResourceNotFoundException.class, () -> ownerService.updateOwner(1, patchOwnerDto));
 
         //Then
         verify(ownerMapper, never()).updateOwner(any(), any());
@@ -153,7 +157,6 @@ class OwnerServiceTest {
     @Test
     void whenDeleteOwner_thenDeleteOwner() {
         //Given
-        Owner owner = new Owner(1, "Alice", "Smith", 30, "Gdansk", Collections.emptyList());
         when(ownerRepository.findById(1))
                 .thenReturn(Optional.of(owner));
 
@@ -174,17 +177,6 @@ class OwnerServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> ownerService.deleteOwner(1));
 
         //Then
-        verify(ownerRepository, never()).delete(any());
-    }
-
-    @Test
-    void whenAddInvalidDogsToOwner_thenLinkDogToOwner() {
-        //Then
-        OwnerDogLinkDto ownerDogLinkDto = new OwnerDogLinkDto(List.of("Cor"));
-        when(dogRepository.findAllByBreedIgnoreCaseIn(ownerDogLinkDto.dogs()))
-                .thenThrow(ResourceNotFoundException.class);
-
-        //When
-        assertThrows(ResourceNotFoundException.class, () -> ownerService.addDogsToOwner(1, ownerDogLinkDto));
+        verify(ownerRepository, never()).delete(any(Owner.class));
     }
 }

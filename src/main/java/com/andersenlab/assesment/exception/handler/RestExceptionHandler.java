@@ -1,10 +1,11 @@
 package com.andersenlab.assesment.exception.handler;
 
-import com.andersenlab.assesment.exception.AbstractCustomException;
-import com.andersenlab.assesment.exception.ResourceAlreadyExistsException;
+import com.andersenlab.assesment.exception.*;
 import com.andersenlab.assesment.exception.model.ErrorCode;
 import com.andersenlab.assesment.exception.model.ErrorResponse;
-import com.andersenlab.assesment.exception.ResourceNotFoundException;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,18 +16,18 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import javax.servlet.http.HttpServletRequest;
-
 @ControllerAdvice
 @RequiredArgsConstructor
 public class RestExceptionHandler {
 
     @ExceptionHandler({
             ResourceNotFoundException.class,
-            ResourceAlreadyExistsException.class
+            ResourceAlreadyExistsException.class,
+            ActionNotAllowedException.class,
+            RegistrationFailedException.class
     })
     @ResponseBody
-    public ResponseEntity<ErrorResponse> handleCustomException(AbstractCustomException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleCustomException(AbstractCustomException ex) {
         return ResponseEntity
                 .status(ex.getHttpStatus())
                 .body(ErrorResponse.builder()
@@ -39,7 +40,7 @@ public class RestExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseBody
-    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
         FieldError fieldError = ex.getBindingResult().getAllErrors().stream()
                 .filter(FieldError.class::isInstance)
                 .map(FieldError.class::cast)
@@ -50,8 +51,23 @@ public class RestExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.builder()
-                        .errorCode(ErrorCode.byMessage(ex.getMessage()))
+                        .errorCode(ErrorCode.byMessage(message))
                         .message(message)
+                        .details(fieldName)
+                        .build()
+                );
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorResponse> handleConstraintViolationException(ConstraintViolationException ex) {
+        String fieldName = getFieldNameFromConstraint(ex.getConstraintViolations().iterator().next());
+        String errorMessageFromAnnotation = getAnnotationMessageFromConstraint(ex.getConstraintViolations().iterator().next());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .errorCode(ErrorCode.byMessage(errorMessageFromAnnotation))
+                        .message(errorMessageFromAnnotation)
                         .details(fieldName)
                         .build()
                 );
@@ -59,7 +75,7 @@ public class RestExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseBody
-    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.builder()
@@ -68,5 +84,17 @@ public class RestExceptionHandler {
                         .details(ex.getMessage())
                         .build()
                 );
+    }
+
+    private String getFieldNameFromConstraint(ConstraintViolation<?> violation) {
+        String field = null;
+        for (Path.Node node : violation.getPropertyPath()) {
+            field = node.getName();
+        }
+        return field;
+    }
+
+    private String getAnnotationMessageFromConstraint(ConstraintViolation<?> violation) {
+        return violation.getMessage();
     }
 }

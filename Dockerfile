@@ -9,4 +9,4 @@ WORKDIR /app
 COPY --from=build /gradle/build/libs/*.jar /app/
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "dog-owner-management-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["java", "-jar", "breed-owner-management-0.0.1-SNAPSHOT.jar"]

@@ -1,37 +1,26 @@
 package com.andersenlab.assesment.entity;
 
+import jakarta.persistence.*;
 import lombok.*;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.ManyToMany;
-import javax.persistence.Table;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "dog")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(of = { "breed", "averageLifeExpectancy", "originCountry", "easyToTrain"})
-@ToString(exclude = "owners")
 public class Dog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-
-    private String breed;
-
-    private Integer averageLifeExpectancy;
-
-    private Boolean easyToTrain;
-
-    private String originCountry;
-
-    @ManyToMany(mappedBy = "dogs")
-    private List<Owner> owners = new ArrayList<>();
+    private String name;
+    private LocalDate dateOfBirth;
+    @ManyToOne
+    @JoinColumn(name = "owner_id")
+    private Owner owner;
+    @ManyToOne
+    @JoinColumn(name = "breed_id")
+    private Breed breed;
 }

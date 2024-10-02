@@ -1,4 +1,4 @@
-package com.andersenlab.assesment.dto;
+package com.andersenlab.assesment.dto.owner;
 
 public record OwnerFilter(String firstName,
                           String lastName,

@@ -1,19 +1,20 @@
 package com.andersenlab.assesment.service;
 
-import com.andersenlab.assesment.dto.OwnerDogLinkDto;
-import com.andersenlab.assesment.dto.OwnerDto;
-import com.andersenlab.assesment.dto.OwnerFilter;
-import com.andersenlab.assesment.dto.OwnerRequestDto;
-import com.andersenlab.assesment.entity.Dog;
+import com.andersenlab.assesment.dto.owner.OwnerDto;
+import com.andersenlab.assesment.dto.owner.OwnerFilter;
+import com.andersenlab.assesment.dto.owner.CreateOwnerDto;
+import com.andersenlab.assesment.dto.owner.PatchOwnerDto;
 import com.andersenlab.assesment.entity.Owner;
 import com.andersenlab.assesment.entity.Owner_;
+import com.andersenlab.assesment.exception.ActionNotAllowedException;
+import com.andersenlab.assesment.exception.ResourceAlreadyExistsException;
 import com.andersenlab.assesment.exception.model.ErrorCode;
 import com.andersenlab.assesment.exception.ResourceNotFoundException;
 import com.andersenlab.assesment.mapper.OwnerMapper;
-import com.andersenlab.assesment.repository.DogRepository;
 import com.andersenlab.assesment.repository.OwnerRepository;
 import com.andersenlab.assesment.repository.specification.ConditionSpecification;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,25 +24,28 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OwnerService {
 
     private final OwnerRepository ownerRepository;
-    private final DogRepository dogRepository;
     private final OwnerMapper ownerMapper;
 
     @Transactional
-    public OwnerDto createOwner(OwnerRequestDto ownerRequestDto) {
-        Owner owner = ownerMapper.mapToOwner(ownerRequestDto);
+    public OwnerDto createOwner(CreateOwnerDto createOwnerDto) {
+        Owner owner = ownerMapper.mapToOwner(createOwnerDto);
         Owner savedOwner = ownerRepository.save(owner);
         return ownerMapper.mapToOwnerDto(savedOwner);
     }
 
     @Transactional(readOnly = true)
     public OwnerDto getOwner(Integer ownerId) {
-        return ownerMapper.mapToOwnerDto(getOwnerById(ownerId));
+        return getOwnerById(ownerId)
+                .map(ownerMapper::mapToOwnerDto)
+                .orElseThrow(() -> resourceNotFoundException(ownerId));
     }
 
     @Transactional(readOnly = true)
@@ -68,52 +72,45 @@ public class OwnerService {
     }
 
     @Transactional
-    public OwnerDto updateOwner(Integer ownerId, OwnerRequestDto ownerRequestDto) {
-        Owner updatedOwner = ownerMapper.updateOwner(getOwnerById(ownerId), ownerRequestDto);
-        return ownerMapper.mapToOwnerDto(updatedOwner);
+    public OwnerDto updateOwner(Integer ownerId, PatchOwnerDto patchOwnerDto) {
+        return getOwnerById(ownerId)
+                .map(owner -> ownerMapper.updateOwner(owner, patchOwnerDto))
+                .map(ownerMapper::mapToOwnerDto)
+                .orElseThrow(() -> resourceNotFoundException(ownerId));
     }
 
     @Transactional
     public void deleteOwner(Integer ownerId) {
-        ownerRepository.delete(getOwnerById(ownerId));
-    }
-
-    @Transactional
-    public OwnerDto addDogsToOwner(Integer ownerId, OwnerDogLinkDto ownerDogLinkDto) {
-        List<Dog> dogs = getDogsIfListIsValid(ownerDogLinkDto.dogs());
-        Owner owner = getOwnerById(ownerId);
-        owner.addDogs(dogs);
-        return ownerMapper.mapToOwnerDto(owner);
-    }
-
-    @Transactional
-    public void removeDogsFromOwner(Integer ownerId, List<String> breeds) {
-        List<Dog> dogs = getDogsIfListIsValid(breeds);
-        Owner owner = getOwnerById(ownerId);
-        owner.removeDogs(dogs);
-    }
-
-    private Owner getOwnerById(Integer ownerId) {
-        return ownerRepository.findById(ownerId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                                ErrorCode.ERR004, "Owner with id [" + ownerId + "] not found", HttpStatus.NOT_FOUND
-                        )
+        getOwnerById(ownerId)
+                .ifPresentOrElse(
+                        ownerRepository::delete,
+                        () -> { throw resourceNotFoundException(ownerId); }
                 );
     }
 
-    private List<Dog> getDogsIfListIsValid(List<String> breedNames) {
-        List<Dog> dogs = dogRepository.findAllByBreedIgnoreCaseIn(breedNames);
-        List<String> validBreedNames = dogs.stream()
-                .map(Dog::getBreed)
-                .toList();
-        List<String> invalidBreeds = breedNames.stream()
-                .filter(breed -> !validBreedNames.contains(breed))
-                .toList();
-        if (!invalidBreeds.isEmpty()) {
-            throw new ResourceNotFoundException(
-                    ErrorCode.ERR004, "Invalid breeds: " + String.join(", ", invalidBreeds), HttpStatus.BAD_REQUEST
+    @Transactional(readOnly = true)
+    public void verifyOwnerConsistency(Integer ownerId, String email) {
+        getOwnerById(ownerId)
+                .map(Owner::getEmail)
+                .filter(mail -> mail.equals(email))
+                .ifPresentOrElse(id -> log.debug("Owner consistency is verified"),
+                        () -> { throw new ActionNotAllowedException(ErrorCode.ERR009, ErrorCode.ERR009.getMessage()); }
+                );
+    }
+
+    Optional<Owner> getOwnerById(Integer ownerId) {
+        return ownerRepository.findById(ownerId);
+    }
+
+    ResourceNotFoundException resourceNotFoundException(Integer ownerId) {
+        return new ResourceNotFoundException(ErrorCode.ERR004, "Owner with id [" + ownerId + "] not found", HttpStatus.NOT_FOUND);
+    }
+
+    void verifyThatOwnerDoesNotExist(String email) {
+        if(ownerRepository.existsByEmail(email)) {
+            throw new ResourceAlreadyExistsException(
+                    ErrorCode.ERR005, "Owner [" + email + "] already exists", HttpStatus.BAD_REQUEST
             );
         }
-        return dogs;
     }
 }

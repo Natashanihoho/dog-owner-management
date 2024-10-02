@@ -1,3 +1,5 @@
+server:
+  port: 8084
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
@@ -7,5 +9,15 @@ spring:
   jpa:
     open-in-view: false
     show-sql: true
-server:
-  port: 8084
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${app.keycloak.serverurl}/realms/${app.keycloak.realm}
+app:
+  keycloak:
+    admin:
+      clientId: dog-owner-management-client
+      clientSecret: 5DadURYLfQfofiHUNzaSd4pA1yCydxEa
+    realm: master
+    serverurl: http://localhost:9090

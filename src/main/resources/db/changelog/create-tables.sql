@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS owner
 
 --rollback DROP TABLE owner
 
---changeset nhardziyevich:create-dog-table
+--changeset nhardziyevich:create-breed-table
 
-CREATE TABLE IF NOT EXISTS dog
+CREATE TABLE IF NOT EXISTS breed
 (
     id                      SERIAL PRIMARY KEY,
     breed                   VARCHAR(128) UNIQUE NOT NULL,
@@ -24,14 +24,14 @@ CREATE TABLE IF NOT EXISTS dog
     easy_to_train           BOOLEAN NOT NULL
 );
 
---rollback DROP TABLE dog
+--rollback DROP TABLE breed
 
---changeset nhardziyevich:create-dog-owner-table
+--changeset nhardziyevich:create-breed-owner-table
 
 CREATE TABLE dog_owner
 (
     owner_id INT REFERENCES owner (id) ON DELETE CASCADE,
-    dog_id   INT REFERENCES dog (id) ON DELETE CASCADE,
+    dog_id   INT REFERENCES breed (id) ON DELETE CASCADE,
     PRIMARY KEY (owner_id, dog_id)
 );
 
