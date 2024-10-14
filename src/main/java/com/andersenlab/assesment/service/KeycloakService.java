@@ -2,7 +2,7 @@ package com.andersenlab.assesment.service;
 
 import com.andersenlab.assesment.dto.owner.CreateOwnerDto;
 import com.andersenlab.assesment.dto.owner.Role;
-import com.andersenlab.assesment.exception.RegistrationFailedException;
+import com.andersenlab.assesment.exception.KeycloakOperationFailedException;
 import com.andersenlab.assesment.exception.ResourceNotFoundException;
 import com.andersenlab.assesment.exception.model.ErrorCode;
 import jakarta.ws.rs.WebApplicationException;
@@ -43,10 +43,10 @@ public class KeycloakService {
         } catch (WebApplicationException e) {
             int status = e.getResponse().getStatus();
             log.error("Registration failed with status code [{}]", status);
-            throw new RegistrationFailedException(ErrorCode.ERR007, ErrorCode.ERR007.getMessage(), HttpStatus.valueOf(status));
+            throw new KeycloakOperationFailedException(ErrorCode.ERR007, ErrorCode.ERR007.getMessage(), HttpStatus.valueOf(status));
         } catch (Exception e) {
             log.error("Registration failed due to a system error: [{}]", e.getMessage());
-            throw new RegistrationFailedException(ErrorCode.ERR007, ErrorCode.ERR007.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new KeycloakOperationFailedException(ErrorCode.ERR007, ErrorCode.ERR007.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -68,6 +68,17 @@ public class KeycloakService {
                     throw new ResourceNotFoundException(ErrorCode.ERR004, ErrorCode.ERR004.getMessage(), HttpStatus.NOT_FOUND);
                 }
         );
+    }
+
+    public void deleteUser(String username) {
+        UsersResource usersResource = getUsersResource();
+        String userId = getUserId(username, usersResource);
+        try (Response response = usersResource.delete(userId)) {
+            log.debug("The user [{}] has been deleted. Response status [{}]", userId, response.getStatus());
+        } catch (Exception e) {
+            log.error("Deletion failed due to a system error: [{}]", e.getMessage());
+            throw new KeycloakOperationFailedException(ErrorCode.ERR010, ErrorCode.ERR010.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     private UserRepresentation buildUserRepresentation(CreateOwnerDto createOwnerDto) {
@@ -111,6 +122,14 @@ public class KeycloakService {
         String userId = CreatedResponseUtil.getCreatedId(response);
         UserResource userResource = getUsersResource().get(userId);
         userResource.roles().realmLevel().add(Collections.singletonList(roleRepresentation));
+    }
+
+    private String getUserId(String username, UsersResource usersResource) {
+        List<UserRepresentation> users = usersResource.search(username, true);
+        if (users.isEmpty()) {
+            throw new ResourceNotFoundException(ErrorCode.ERR004, ErrorCode.ERR004.getMessage(), HttpStatus.NOT_FOUND);
+        }
+        return users.getFirst().getId();
     }
 
     private Optional<UserRepresentation> getUserByEmail(String username) {

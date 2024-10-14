@@ -28,7 +28,7 @@ public class OwnerFacade {
 
     public OwnerDto getOwner(Integer ownerId, UserInfoDto userInfoDto) {
         verifyPermission(ownerId, userInfoDto);
-       return ownerService.getOwner(ownerId);
+        return ownerService.getOwner(ownerId);
     }
 
     public Page<OwnerDto> getAllOwners(Pageable pageable) {
@@ -51,6 +51,7 @@ public class OwnerFacade {
     public void deleteOwner(Integer ownerId, UserInfoDto userInfoDto) {
         verifyPermission(ownerId, userInfoDto);
         ownerService.deleteOwner(ownerId);
+        keycloakService.deleteUser(userInfoDto.email());
     }
 
     public DogDto addDogToOwner(Integer ownerId, CreateDogDto createDogDto, UserInfoDto userInfoDto) {

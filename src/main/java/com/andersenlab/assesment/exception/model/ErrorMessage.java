@@ -11,4 +11,5 @@ public interface ErrorMessage {
     String ERR007_MESSAGE = "Registration failed";
     String ERR008_MESSAGE = "Email format is invalid";
     String ERR009_MESSAGE = "Permission denied. Action not allowed.";
+    String ERR010_MESSAGE = "User deletion failed";
 }

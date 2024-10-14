@@ -75,9 +75,9 @@ class DogServiceTest {
     void whenGetAllDogs_thenReturnDogsPage() {
         //Given
         Pageable pageable = Pageable.ofSize(2);
-        Page<Dog> DogPage = new PageImpl<>(List.of(dog, dog));
+        Page<Dog> dogPage = new PageImpl<>(List.of(dog, dog));
         when(dogRepository.findAll(pageable))
-                .thenReturn(DogPage);
+                .thenReturn(dogPage);
 
         //When
         Page<DogDto> actual = dogService.getAllDogs(pageable);

@@ -24,7 +24,7 @@ public class RestExceptionHandler {
             ResourceNotFoundException.class,
             ResourceAlreadyExistsException.class,
             ActionNotAllowedException.class,
-            RegistrationFailedException.class
+            KeycloakOperationFailedException.class
     })
     @ResponseBody
     public ResponseEntity<ErrorResponse> handleCustomException(AbstractCustomException ex) {

@@ -193,6 +193,22 @@ class OwnerControllerTest {
         verify(ownerFacade).deleteOwner(1, userInfoDto);
     }
 
+    @Test
+    void whenUpdateOwnerRoles_thenNoContent() throws Exception {
+        //Given
+        PatchRoleDto patchRoleDto = new PatchRoleDto("email", Role.ADMIN, KeycloakRoleOperationType.ADD);
+
+        //When
+        mockMvc.perform(patch(OwnerController.OWNERS_URL + "/roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .with(jwtRequestPostProcessor)
+                        .content(objectMapper.writeValueAsString(patchRoleDto)))
+                .andExpect(status().isNoContent());
+
+        //Then
+        verify(ownerFacade).updateOwnerRoles(patchRoleDto);
+    }
+
     private static Stream<Arguments> provideInvalidRequestBody() {
         return Stream.of(
                 Arguments.of(aOwnerTest().withFirstName("InvalidSizeOfFirstNameMoreThan128CharactersProvideddddddddddddddddd").buildJsonCreateOwnerDto(), ErrorCode.ERR001),

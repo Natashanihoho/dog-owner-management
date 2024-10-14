@@ -2,7 +2,6 @@ package com.andersenlab.assesment.data;
 
 import com.andersenlab.assesment.dto.dog.CreateDogDto;
 import com.andersenlab.assesment.dto.dog.DogDto;
-import com.andersenlab.assesment.dto.dog.DogFilter;
 import com.andersenlab.assesment.dto.dog.PatchDogDto;
 import com.andersenlab.assesment.entity.Breed;
 import com.andersenlab.assesment.entity.Dog;

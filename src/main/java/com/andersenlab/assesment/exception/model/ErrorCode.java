@@ -17,7 +17,8 @@ public enum ErrorCode {
     ERR006(ErrorMessage.ERR006_MESSAGE),
     ERR007(ErrorMessage.ERR007_MESSAGE),
     ERR008(ErrorMessage.ERR008_MESSAGE),
-    ERR009(ErrorMessage.ERR009_MESSAGE);
+    ERR009(ErrorMessage.ERR009_MESSAGE),
+    ERR010(ErrorMessage.ERR010_MESSAGE);
 
     private final String message;
 
